@@ -76,9 +76,12 @@ class ConvertCocoPolysToMask(object):
 def make_coco_transforms(image_set, info_file, args):
     # load normalization arguments:
     norms = json.load(open(info_file, "r"))
-
+    print(norms)
     normalize = T.Compose(
-        [T.ToTensor(), T.Normalize([0.538, 0.494, 0.453], [0.257, 0.263, 0.273])]
+        [
+            T.ToTensor(),
+            T.Normalize(norms[args.data_type]["mean"], norms[args.data_type]["std"]),
+        ]
     )
 
     scales = [480, 512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
@@ -118,11 +121,7 @@ def make_coco_transforms(image_set, info_file, args):
                     ),
                 )
             elif not args.no_crop:
-                txfms.append(
-                    T.RandomSelect(
-                        T.Compose([T.RandomSizeCrop(384, 600)]),
-                    ),
-                )
+                txfms.append(T.RandomSizeCrop(384, 600))
 
             if not args.no_jitter:
                 txfms.append(T.ColorJitter())
