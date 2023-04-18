@@ -153,7 +153,12 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                 curr_img_id = targets[0]['image_id'].tolist()[0]
                 np.savez(checkpoint_path.format(int(id_to_img[curr_img_id])),**{'lines': line, 'score':score})
             else:
-                assert False
+                append_path = '/benchmark/benchmark_val_'+args.append_word
+                os.makedirs(args.output_dir+append_path , exist_ok=True) 
+                checkpoint_path = args.output_dir+append_path+'/{:08d}.npz'
+                curr_img_id = targets[0]['image_id'].tolist()[0] 
+                np.savez(checkpoint_path.format(int(id_to_img[curr_img_id])),**{'lines': line, 'score':score}) 
+
         num_images +=1
 
     # gather the stats from all processes
