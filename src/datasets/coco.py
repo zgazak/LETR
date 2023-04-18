@@ -10,25 +10,27 @@ import torchvision
 import datasets.transforms as T
 import math
 import numpy as np
+import json
+
 
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, args):
         super(CocoDetection, self).__init__(img_folder, ann_file)
         self._transforms = transforms
-        self.prepare = ConvertCocoPolysToMask() 
+        self.prepare = ConvertCocoPolysToMask()
         self.args = args
 
     def __getitem__(self, idx):
         img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
-        target = {'image_id': image_id, 'annotations': target}
+        target = {"image_id": image_id, "annotations": target}
         img, target = self.prepare(img, target, self.args)
         if self._transforms is not None:
             img, target = self._transforms(img, target)
         return img, target
 
-class ConvertCocoPolysToMask(object):
 
+class ConvertCocoPolysToMask(object):
     def __call__(self, image, target, args):
         w, h = image.size
 
@@ -38,11 +40,11 @@ class ConvertCocoPolysToMask(object):
         anno = target["annotations"]
 
         anno = [obj for obj in anno]
- 
+
         lines = [obj["line"] for obj in anno]
         lines = torch.as_tensor(lines, dtype=torch.float32).reshape(-1, 4)
 
-        lines[:, 2:] += lines[:, :2] #xyxy
+        lines[:, 2:] += lines[:, :2]  # xyxy
 
         lines[:, 0::2].clamp_(min=0, max=w)
         lines[:, 1::2].clamp_(min=0, max=h)
@@ -52,15 +54,16 @@ class ConvertCocoPolysToMask(object):
 
         target = {}
         target["lines"] = lines
-        
 
         target["labels"] = classes
-        
+
         target["image_id"] = image_id
 
         # for conversion to coco api
         area = torch.tensor([obj["area"] for obj in anno])
-        iscrowd = torch.tensor([obj["iscrowd"] if "iscrowd" in obj else 0 for obj in anno])
+        iscrowd = torch.tensor(
+            [obj["iscrowd"] if "iscrowd" in obj else 0 for obj in anno]
+        )
         target["area"] = area
         target["iscrowd"] = iscrowd
 
@@ -70,65 +73,115 @@ class ConvertCocoPolysToMask(object):
         return image, target
 
 
-def make_coco_transforms(image_set, args):
+def make_coco_transforms(image_set, info_file, args):
+    # load normalization arguments:
+    norms = json.load(open(info_file, "r"))
 
-    normalize = T.Compose([
-        T.ToTensor(),
-        T.Normalize([0.538, 0.494, 0.453], [0.257, 0.263, 0.273])
-    ])
+    normalize = T.Compose(
+        [T.ToTensor(), T.Normalize([0.538, 0.494, 0.453], [0.257, 0.263, 0.273])]
+    )
 
     scales = [480, 512, 544, 576, 608, 640, 672, 680, 690, 704, 736, 768, 788, 800]
     test_size = 1100
-    max = 1333 
+    max = 1333
 
     if args.eval:
-        return T.Compose([
-            T.RandomResize([test_size], max_size=max),
-            normalize,
-        ])
+        if not args.no_resize:
+            return T.Compose(
+                [
+                    T.RandomResize([test_size], max_size=max),
+                    normalize,
+                ]
+            )
+        else:
+            return T.Compose([normalize])
     else:
-        if image_set == 'train':
-            return T.Compose([
+        if image_set == "train":
+            txfms = [
                 T.RandomSelect(
                     T.RandomHorizontalFlip(),
                     T.RandomVerticalFlip(),
-                ),
-                T.RandomSelect(
-                    T.RandomResize(scales, max_size=max),
-                    T.Compose([
-                        T.RandomResize([400, 500, 600]),
-                        T.RandomSizeCrop(384, 600),
+                )
+            ]
+
+            if not args.no_resize:
+                txfms.append(
+                    T.RandomSelect(
                         T.RandomResize(scales, max_size=max),
-                    ])
-                ),
-                T.ColorJitter(),
-                normalize,
-            ])
+                        T.Compose(
+                            [
+                                T.RandomResize([400, 500, 600]),
+                                T.RandomSizeCrop(384, 600),
+                                T.RandomResize(scales, max_size=max),
+                            ]
+                        ),
+                    ),
+                )
+            elif not args.no_crop:
+                txfms.append(
+                    T.RandomSelect(
+                        T.Compose([T.RandomSizeCrop(384, 600)]),
+                    ),
+                )
 
-        if image_set == 'val':
-            return T.Compose([
-                T.RandomResize([test_size], max_size=max),
-                normalize,
-            ])
+            if not args.no_jitter:
+                txfms.append(T.ColorJitter())
 
-    raise ValueError(f'unknown {image_set}')
+            txfms.append(normalize)
+
+            return T.Compose(txfms)
+
+        if image_set == "val":
+            if not args.no_resize:
+                return T.Compose(
+                    [
+                        T.RandomResize([test_size], max_size=max),
+                        normalize,
+                    ]
+                )
+            else:
+                return T.Compose([normalize])
+
+    raise ValueError(f"unknown {image_set}")
+
 
 def build(image_set, args):
     root = Path(args.coco_path)
-    assert root.exists(), f'provided COCO path {root} does not exist'
-    mode = 'lines'
+    assert root.exists(), f"provided COCO path {root} does not exist"
+    mode = "lines"
 
     if args.eval:
         PATHS = {
-            "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-            "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
-        }    
+            "train": (
+                root / f"train_{args.data_type}",
+                root / "annotations" / f"{mode}_train.json",
+                root / "annotations" / "info_train.json",
+            ),
+            "val": (
+                root / f"val_{args.data_type}",
+                root / "annotations" / f"{mode}_val.json",
+                root / "annotations" / "info_val.json",
+            ),
+        }
     else:
         PATHS = {
-            "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-            "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
+            "train": (
+                root / f"train_{args.data_type}",
+                root / "annotations" / f"{mode}_train.json",
+                root / "annotations" / "info_train.json",
+            ),
+            "val": (
+                root / f"val_{args.data_type}",
+                root / "annotations" / f"{mode}_val.json",
+                root / "annotations" / "info_val.json",
+            ),
         }
 
-    img_folder, ann_file = PATHS[image_set]
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set, args), args=args)
+    img_folder, ann_file, info_file = PATHS[image_set]
+    dataset = CocoDetection(
+        img_folder,
+        ann_file,
+        transforms=make_coco_transforms(image_set, info_file, args),
+        args=args,
+    )
     return dataset
