@@ -198,7 +198,7 @@ def get_args_parser():
         "--dist_url", default="env://", help="url used to set up distributed training"
     )
 
-    parser.add_argument("--data_type", default="median_3c", type=str)
+    parser.add_argument("--data_type", default=None, type=str)
     parser.add_argument("--no_resize", action="store_true")
     parser.add_argument("--no_jitter", action="store_true")
     parser.add_argument("--no_crop", action="store_true")

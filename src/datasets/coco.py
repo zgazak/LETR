@@ -76,7 +76,7 @@ class ConvertCocoPolysToMask(object):
 def make_coco_transforms(image_set, info_file, args):
     # load normalization arguments:
     norms = json.load(open(info_file, "r"))
-    print(norms)
+
     normalize = T.Compose(
         [
             T.ToTensor(),
@@ -149,6 +149,7 @@ def build(image_set, args):
     assert root.exists(), f"provided COCO path {root} does not exist"
     mode = "lines"
 
+    # val has train info, b/c need to normalize to train data (known in advance)
     if args.eval:
         PATHS = {
             "train": (
@@ -159,7 +160,7 @@ def build(image_set, args):
             "val": (
                 root / f"val_{args.data_type}",
                 root / "annotations" / f"{mode}_val.json",
-                root / "annotations" / "info_val.json",
+                root / "annotations" / "info_train.json",
             ),
         }
     else:
@@ -172,7 +173,7 @@ def build(image_set, args):
             "val": (
                 root / f"val_{args.data_type}",
                 root / "annotations" / f"{mode}_val.json",
-                root / "annotations" / "info_val.json",
+                root / "annotations" / "info_train.json",
             ),
         }
 
