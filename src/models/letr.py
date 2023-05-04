@@ -223,12 +223,27 @@ class SetCriterion(nn.Module):
             [t["lines"][i] for t, (_, i) in zip(targets, origin_indices)], dim=0
         )
 
+        # split into yx, yx
+        syx1, syx2 = torch.split(src_lines, 2, dim=-1)
+        tyx1, tyx2 = torch.split(target_lines, 2, dim=-1)
+
+        # calculate line lengths
+        src_lines_lengths = torch.nn.PairwiseDistance(2)(syx1, syx2)
+        targ_line_lengths = torch.nn.PairwiseDistance(2)(tyx1, tyx2)
+
+        loss_line = F.l2_loss(src_lines_lengths, targ_line_lengths, reduction="none")
+
         print(src_lines)
+        print(src_lines_lengths)
         print(target_lines)
+        print(targ_line_lengths)
 
-        # regularize on scatter in line lengths
-        sq_loss_line_lengths = F.l2_loss(src_lines, target_lines, reduction="none")
+        print(loss_line)
 
+        losses = {}
+        losses["loss_length"] = loss_line.sum() / num_items
+
+        return losses
         pass
 
     def loss_orientation(self, outputs, targets, num_items):
@@ -449,7 +464,7 @@ def build(args):
 
     if args.length_loss:
         losses.append("length")
-        weight_dict["length"] = args.line_length_coef
+        weight_dict["loss_length"] = args.line_length_coef
 
     if args.orient_loss:
         losses.append("orientation")
