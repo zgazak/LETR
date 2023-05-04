@@ -231,7 +231,7 @@ class SetCriterion(nn.Module):
         src_lines_lengths = torch.nn.PairwiseDistance(2)(syx1, syx2)
         targ_line_lengths = torch.nn.PairwiseDistance(2)(tyx1, tyx2)
 
-        loss_line = F.l2_loss(src_lines_lengths, targ_line_lengths, reduction="none")
+        loss_line = F.l1_loss(src_lines_lengths, targ_line_lengths, reduction="none")
 
         print(src_lines)
         print(src_lines_lengths)
