@@ -233,13 +233,6 @@ class SetCriterion(nn.Module):
 
         loss_line = F.l1_loss(src_lines_lengths, targ_line_lengths, reduction="none")
 
-        print(src_lines)
-        print(src_lines_lengths)
-        print(target_lines)
-        print(targ_line_lengths)
-
-        print(loss_line)
-
         losses = {}
         losses["loss_length"] = loss_line.sum() / num_items
 
