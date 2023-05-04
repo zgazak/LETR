@@ -171,6 +171,11 @@ def get_args_parser():
     parser.add_argument("--label_loss_func", default="cross_entropy", type=str)
     parser.add_argument("--label_loss_params", default="{}", type=str)
 
+    parser.add_argument("--line_length_coef", default=5, type=float)
+    parser.add_argument("--line_orient_coef", default=5, type=float)
+    parser.add_argument("--length_loss", action="store_true")
+    parser.add_argument("--orient_loss", action="store_true")
+
     # dataset parameters
     parser.add_argument("--dataset_file", default="coco")
     parser.add_argument("--coco_path", type=str)
