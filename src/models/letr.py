@@ -219,22 +219,24 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(origin_indices)
 
         src_lines = outputs["pred_lines"][idx]
-        target_lines = torch.cat(
-            [t["lines"][i] for t, (_, i) in zip(targets, origin_indices)], dim=0
-        )
+        # target_lines = torch.cat(
+        #    [t["lines"][i] for t, (_, i) in zip(targets, origin_indices)], dim=0
+        # )
 
         # split into yx, yx
         syx1, syx2 = torch.split(src_lines, 2, dim=-1)
-        tyx1, tyx2 = torch.split(target_lines, 2, dim=-1)
+        # tyx1, tyx2 = torch.split(target_lines, 2, dim=-1)
 
         # calculate line lengths
         src_lines_lengths = torch.nn.PairwiseDistance(2)(syx1, syx2)
-        targ_line_lengths = torch.nn.PairwiseDistance(2)(tyx1, tyx2)
+        # targ_line_lengths = torch.nn.PairwiseDistance(2)(tyx1, tyx2)
 
-        loss_line = F.l1_loss(src_lines_lengths, targ_line_lengths, reduction="none")
+        # loss_line = F.l1_loss(src_lines_lengths, targ_line_lengths, reduction="none")
+        loss_line = torch.std(src_lines_lengths)
+        print(loss_line)
 
         losses = {}
-        losses["loss_length"] = loss_line.sum() / num_items
+        losses["loss_length"] = loss_line
 
         return losses
         pass
