@@ -233,7 +233,7 @@ class SetCriterion(nn.Module):
 
         # loss_line = F.l1_loss(src_lines_lengths, targ_line_lengths, reduction="none")
         loss_line = torch.std(src_lines_lengths)
-        print("length", loss_line)
+        # print("length", loss_line)
 
         losses = {}
         losses["loss_length"] = loss_line
@@ -257,7 +257,7 @@ class SetCriterion(nn.Module):
 
         angles = torch.atan2(y, x)
         angle_spread = torch.std(angles)
-        print("orietn", angle_spread)
+        # print("orietn", angle_spread)
 
         losses = {}
         losses["loss_orientation"] = angle_spread
