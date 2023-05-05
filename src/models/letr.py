@@ -250,7 +250,7 @@ class SetCriterion(nn.Module):
 
         src_lines = outputs["pred_lines"][idx]
 
-        sy1, sx1, sy2, sx2 = torch.split(src_lines, 1, idx=-1)
+        sy1, sx1, sy2, sx2 = torch.split(src_lines, 1, dim=-1)
 
         y = sy2 - sy1
         x = sx2 - sx1
