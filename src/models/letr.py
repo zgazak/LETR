@@ -233,18 +233,36 @@ class SetCriterion(nn.Module):
 
         # loss_line = F.l1_loss(src_lines_lengths, targ_line_lengths, reduction="none")
         loss_line = torch.std(src_lines_lengths)
-        print(loss_line)
+        print("length", loss_line)
 
         losses = {}
         losses["loss_length"] = loss_line
 
         return losses
-        pass
 
-    def loss_orientation(self, outputs, targets, num_items):
+    def loss_orientation(self, outputs, targets, num_items, origin_indices=0):
         # regularize on scatter in line orientation angles
         # triggo?
-        pass
+
+        assert "pred_lines" in outputs
+
+        idx = self._get_src_permutation_idx(origin_indices)
+
+        src_lines = outputs["pred_lines"][idx]
+
+        sy1, sx1, sy2, sx2 = torch.split(src_lines, 1, idx=-1)
+
+        y = sy2 - sy1
+        x = sx2 - sx1
+
+        angles = torch.atan2(y, x)
+        angle_spread = torch.std(angles)
+        print("orietn", angle_spread)
+
+        losses = {}
+        losses["loss_orientation"] = angle_spread
+
+        return losses
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
@@ -463,7 +481,7 @@ def build(args):
 
     if args.orient_loss:
         losses.append("orientation")
-        weight_dict["orientation"] = args.line_orient_coef
+        weight_dict["loss_orientation"] = args.line_orient_coef
 
     if args.aux_loss:
         aux_weight_dict = {}
