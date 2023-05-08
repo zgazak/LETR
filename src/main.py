@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 import datasets
 import util.misc as utils
+from flow import Recorder, rcfg
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
@@ -226,64 +227,78 @@ def main(args):
         return
 
     print("Start training")
-    start_time = time.time()
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            sampler_train.set_epoch(epoch)
 
-        train_stats = train_one_epoch(
-            model,
-            criterion,
-            postprocessors,
-            data_loader_train,
-            optimizer,
-            device,
-            epoch,
-            args.clip_max_norm,
-            args,
-        )
+    # create recorder and start mlflow run
 
-        lr_scheduler.step()
-        if args.output_dir:
-            checkpoint_paths = [output_dir / "checkpoints/checkpoint.pth"]
-            # extra checkpoint before LR drop and every several epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_freq == 0:
-                checkpoint_paths.append(
-                    output_dir / f"checkpoints/checkpoint{epoch:04}.pth"
-                )
-            for checkpoint_path in checkpoint_paths:
-                utils.save_on_master(
-                    {
-                        "model": model_without_ddp.state_dict(),
-                        "optimizer": optimizer.state_dict(),
-                        "lr_scheduler": lr_scheduler.state_dict(),
-                        "epoch": epoch,
-                        "args": args,
-                    },
-                    checkpoint_path,
-                )
+    recorder = Recorder(rcfg)
+    recorder.create_experiment()
 
-        test_stats = evaluate(
-            model,
-            criterion,
-            postprocessors,
-            data_loader_val,
-            base_ds,
-            device,
-            args.output_dir,
-            args,
-        )
+    with recorder.start_run():
+        start_time = time.time()
+        recorder.epoch = epoch
+        for epoch in range(args.start_epoch, args.epochs):
+            if args.distributed:
+                sampler_train.set_epoch(epoch)
 
-        log_stats = {
-            **{f"train_{k}": format(v, ".6f") for k, v in train_stats.items()},
-            **{f"test_{k}": format(v, ".6f") for k, v in test_stats.items()},
-            "epoch": epoch,
-            "n_parameters": n_parameters,
-        }
+            train_stats = train_one_epoch(
+                model,
+                criterion,
+                postprocessors,
+                data_loader_train,
+                optimizer,
+                device,
+                epoch,
+                args.clip_max_norm,
+                args,
+            )
 
-        if args.output_dir and utils.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+            lr_scheduler.step()
+            if args.output_dir:
+                checkpoint_paths = [output_dir / "checkpoints/checkpoint.pth"]
+                # extra checkpoint before LR drop and every several epochs
+                if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_freq == 0:
+                    checkpoint_paths.append(
+                        output_dir / f"checkpoints/checkpoint{epoch:04}.pth"
+                    )
+                for checkpoint_path in checkpoint_paths:
+                    utils.save_on_master(
+                        {
+                            "model": model_without_ddp.state_dict(),
+                            "optimizer": optimizer.state_dict(),
+                            "lr_scheduler": lr_scheduler.state_dict(),
+                            "epoch": epoch,
+                            "args": args,
+                        },
+                        checkpoint_path,
+                    )
+
+            test_stats = evaluate(
+                model,
+                criterion,
+                postprocessors,
+                data_loader_val,
+                base_ds,
+                device,
+                args.output_dir,
+                args,
+                recorder,
+            )
+
+            log_stats = {
+                **{f"train_{k}": format(v, ".6f") for k, v in train_stats.items()},
+                **{f"test_{k}": format(v, ".6f") for k, v in test_stats.items()},
+                "epoch": epoch,
+                "n_parameters": n_parameters,
+            }
+
+            recorder.log_metrics(log_stats, epoch)
+
+            if args.output_dir and utils.is_main_process():
+                with (output_dir / "log.txt").open("a") as f:
+                    f.write(json.dumps(log_stats) + "\n")
+
+        # stop mlflow run, exit gracefully
+        recorder.end_run()
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

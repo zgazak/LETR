@@ -97,7 +97,15 @@ def train_one_epoch(
 
 @torch.no_grad()
 def evaluate(
-    model, criterion, postprocessors, data_loader, base_ds, device, output_dir, args
+    model,
+    criterion,
+    postprocessors,
+    data_loader,
+    base_ds,
+    device,
+    output_dir,
+    args,
+    recorder=None,
 ):
     model.eval()
     criterion.eval()
@@ -126,6 +134,9 @@ def evaluate(
         else:
             outputs = model(samples)
             loss_dict = criterion(outputs, targets)
+
+        if num_images == 0 and recorder is not None:
+            recorder.log_star_fits(samples, targets, outputs)
 
         weight_dict = criterion.weight_dict
 
