@@ -1,2 +1,2 @@
 from .cfg import TrainConfig as rcfg
-from recorder import Recorder
+from .recorder import Recorder
